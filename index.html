@@ -6,6 +6,7 @@
     <title>Correção de Gabaritos</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -230,7 +231,7 @@
     <div class="container">
         <div class="header">
             <h1>📋 Correção de Gabaritos</h1>
-            <p>Sistema automatizado com QR Code</p>
+            <p>Sistema automatizado com QR Code V3</p>
         </div>
 
         <!-- Tela Principal -->
@@ -401,7 +402,7 @@
             localStorage.setItem('provas', JSON.stringify(provas));
 
             // Gerar PDF
-            gerarPDF(prova);
+            await gerarPDF(prova);
             
             alert('Prova criada com sucesso! PDF gerado para download.');
             
@@ -413,7 +414,7 @@
         }
 
         // Gerar PDF do gabarito
-        function gerarPDF(prova) {
+        async function gerarPDF(prova) {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
@@ -426,22 +427,49 @@
             doc.text(`Data: ${prova.data}`, 20, 45);
             doc.text(`Questões: ${prova.questoes}`, 20, 55);
 
-            // QR Code (simulado - em produção usaria biblioteca real)
+            // Gerar QR Code real
+            try {
+                const qrData = JSON.stringify({
+                    id: prova.id,
+                    nome: prova.nome,
+                    questoes: prova.questoes
+                });
+                
+                // Criar canvas temporário para o QR code
+                const canvas = document.createElement('canvas');
+                await QRCode.toCanvas(canvas, qrData, {
+                    width: 120,
+                    margin: 1,
+                    color: {
+                        dark: '#000000',
+                        light: '#FFFFFF'
+                    }
+                });
+                
+                // Converter canvas para imagem e adicionar ao PDF
+                const qrImageData = canvas.toDataURL('image/png');
+                doc.addImage(qrImageData, 'PNG', 20, 65, 30, 30);
+                
+            } catch (error) {
+                console.error('Erro ao gerar QR code:', error);
+                // Fallback: desenhar quadrado simples
+                doc.rect(20, 65, 30, 30);
+            }
+            
             doc.setFontSize(10);
-            doc.text('QR CODE:', 20, 70);
-            doc.rect(20, 75, 30, 30);
-            doc.text(`ID: ${prova.id}`, 55, 90);
+            doc.text('QR CODE:', 20, 62);
+            doc.text(`ID: ${prova.id}`, 55, 80);
 
             // Instruções
             doc.setFontSize(12);
-            doc.text('INSTRUÇÕES:', 20, 120);
+            doc.text('INSTRUÇÕES:', 20, 110);
             doc.setFontSize(10);
-            doc.text('• Preencha completamente as bolhas com caneta azul ou preta', 20, 130);
-            doc.text('• Marque apenas uma alternativa por questão', 20, 140);
-            doc.text('• Não faça marcas fora das bolhas', 20, 150);
+            doc.text('• Preencha completamente as bolhas com caneta azul ou preta', 20, 120);
+            doc.text('• Marque apenas uma alternativa por questão', 20, 130);
+            doc.text('• Não faça marcas fora das bolhas', 20, 140);
 
             // Grid de questões
-            let y = 170;
+            let y = 160;
             const questoesPorLinha = 5;
             
             for (let i = 1; i <= prova.questoes; i++) {
