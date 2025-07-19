@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Correção de Gabaritos</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -231,7 +231,7 @@
     <div class="container">
         <div class="header">
             <h1>📋 Correção de Gabaritos</h1>
-            <p>Sistema automatizado com QR Code V3</p>
+            <p>Sistema automatizado com QR Code v4</p>
         </div>
 
         <!-- Tela Principal -->
@@ -437,13 +437,18 @@
                 
                 // Criar canvas temporário para o QR code
                 const canvas = document.createElement('canvas');
-                await QRCode.toCanvas(canvas, qrData, {
-                    width: 120,
-                    margin: 1,
-                    color: {
-                        dark: '#000000',
-                        light: '#FFFFFF'
-                    }
+                await new Promise((resolve, reject) => {
+                    window.QRCode.toCanvas(canvas, qrData, {
+                        width: 120,
+                        margin: 1,
+                        color: {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        }
+                    }, (error) => {
+                        if (error) reject(error);
+                        else resolve();
+                    });
                 });
                 
                 // Converter canvas para imagem e adicionar ao PDF
@@ -562,20 +567,26 @@
                 ctx.drawImage(video, 0, 0);
                 
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
                 
-                if (code) {
-                    // QR Code detectado
-                    const qrData = code.data;
-                    document.getElementById('scanStatus').textContent = 'QR Code detectado! Processando...';
+                // Verificar se jsQR está disponível
+                if (typeof jsQR !== 'undefined') {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
                     
-                    // Simular detecção de marcações (em produção seria mais sofisticado)
-                    setTimeout(() => {
-                        const respostasAluno = simularDeteccaoMarcacoes();
-                        mostrarResultado(respostasAluno);
-                    }, 1000);
-                    
-                    return;
+                    if (code) {
+                        // QR Code detectado
+                        const qrData = code.data;
+                        document.getElementById('scanStatus').textContent = 'QR Code detectado! Processando...';
+                        
+                        // Simular detecção de marcações (em produção seria mais sofisticado)
+                        setTimeout(() => {
+                            const respostasAluno = simularDeteccaoMarcacoes();
+                            mostrarResultado(respostasAluno);
+                        }, 1000);
+                        
+                        return;
+                    }
+                } else {
+                    console.log('jsQR não carregado, aguardando...');
                 }
             }
             
@@ -671,10 +682,25 @@
 
         // Inicialização
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Sistema carregado!');
+            
             // Verificar suporte à câmera
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert('Seu dispositivo não suporta acesso à câmera.');
+                console.warn('Dispositivo não suporta acesso à câmera.');
             }
+            
+            // Verificar bibliotecas
+            setTimeout(() => {
+                if (typeof jsQR === 'undefined') {
+                    console.warn('jsQR não carregou, scanner pode não funcionar');
+                }
+                if (typeof window.QRCode === 'undefined') {
+                    console.warn('QRCode não carregou, geração de PDF pode falhar');
+                }
+                if (typeof window.jspdf === 'undefined') {
+                    console.warn('jsPDF não carregou');
+                }
+            }, 2000);
         });
     </script>
 </body>
