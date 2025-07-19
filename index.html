@@ -294,6 +294,10 @@
                     Posicione o gabarito na área destacada
                 </div>
                 
+                <button class="btn" onclick="testarSemQR()" style="width: 100%; margin: 10px 0; background: #28a745;">
+                    🧪 Testar Sem QR Code
+                </button>
+                
                 <button class="btn" onclick="pararCamera()" style="width: 100%; margin-top: 10px;">
                     ⏹️ Parar Câmera
                 </button>
@@ -607,6 +611,21 @@
                     </details>
                 </div>
             `;
+        }
+
+        // Testar sem QR code (para demonstração)
+        function testarSemQR() {
+            if (!provaAtual) {
+                alert('Selecione uma prova primeiro!');
+                return;
+            }
+            
+            document.getElementById('scanStatus').textContent = 'Simulando detecção de gabarito...';
+            
+            setTimeout(() => {
+                const respostasAluno = simularDeteccaoMarcacoes();
+                mostrarResultado(respostasAluno);
+            }, 1500);
         }
 
         // Parar câmera
