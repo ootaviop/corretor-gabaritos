@@ -209,16 +209,6 @@
             display: none;
         }
 
-        .success {
-            background: #28a745;
-            color: white;
-        }
-
-        .warning {
-            background: #ffc107;
-            color: #000;
-        }
-
         @media (max-width: 768px) {
             .main-buttons {
                 grid-template-columns: 1fr;
@@ -237,8 +227,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📋 Correção de Gabaritos</h1>
-            <p>Sistema automatizado - Versão Simplificada</p>
+            <h1>📋 Correção de Gabaritos v5</h1>
+            <p>Sistema automatizado com QR Code</p>
         </div>
 
         <!-- Tela Principal -->
@@ -276,7 +266,7 @@
             <div id="gabarito-container"></div>
             
             <button class="btn" id="gerarPDF" onclick="criarProva()" style="display: none; width: 100%; margin-top: 20px;">
-                📄 Criar Prova (PDF Simplificado)
+                📄 Gerar PDF do Gabarito
             </button>
         </div>
 
@@ -302,11 +292,11 @@
                     Posicione o gabarito na área destacada
                 </div>
                 
-                <button class="btn success" onclick="testarSemQR()" style="width: 100%; margin: 10px 0;">
-                    🧪 Simular Correção (Teste)
+                <button class="btn" onclick="testarSemQR()" style="width: 100%; margin: 10px 0; background: #28a745;">
+                    🧪 Testar Sem QR Code (Apenas para Debug)
                 </button>
                 
-                <button class="btn warning" onclick="pararCamera()" style="width: 100%; margin-top: 10px;">
+                <button class="btn" onclick="pararCamera()" style="width: 100%; margin-top: 10px;">
                     ⏹️ Parar Câmera
                 </button>
             </div>
@@ -315,18 +305,47 @@
         </div>
     </div>
 
+    <!-- Canvas oculto para processamento -->
+    <canvas id="canvas" class="canvas-hidden"></canvas>
+
     <script>
+        // Carregar bibliotecas dinamicamente para evitar erro MIME
+        function loadScript(src, callback) {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = callback;
+            script.onerror = () => console.error('Erro ao carregar:', src);
+            document.head.appendChild(script);
+        }
+
+        // Carregar todas as bibliotecas necessárias
+        function initializeLibraries() {
+            console.log('Carregando bibliotecas...');
+            
+            // jsPDF
+            loadScript('https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js', () => {
+                console.log('✅ jsPDF carregado');
+                
+                // QRCode.js
+                loadScript('https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js', () => {
+                    console.log('✅ QRCode carregado');
+                    
+                    // jsQR
+                    loadScript('https://unpkg.com/jsqr@1.4.0/dist/jsQR.js', () => {
+                        console.log('✅ jsQR carregado');
+                        console.log('🚀 Todas as bibliotecas prontas!');
+                    });
+                });
+            });
+        }
+
         // Variáveis globais
         let stream = null;
         let isScanning = false;
         let provaAtual = null;
         
-        console.log('🚀 Sistema iniciado - Versão Simplificada');
-        
         // Função para mostrar seções
         function showSection(sectionId) {
-            console.log('Navegando para:', sectionId);
-            
             document.querySelectorAll('.section').forEach(section => {
                 section.classList.remove('active');
             });
@@ -341,8 +360,6 @@
         function gerarCamposGabarito() {
             const numQuestoes = document.getElementById('numQuestoes').value;
             const container = document.getElementById('gabarito-container');
-            
-            console.log('Gerando campos para', numQuestoes, 'questões');
             
             if (!numQuestoes) {
                 container.innerHTML = '';
@@ -370,15 +387,19 @@
             document.getElementById('gerarPDF').style.display = 'block';
         }
 
-        // Criar prova (versão simplificada)
-        function criarProva() {
+        // Criar prova e gerar PDF
+        async function criarProva() {
             const nome = document.getElementById('nomeProva').value;
             const numQuestoes = document.getElementById('numQuestoes').value;
             
-            console.log('Criando prova:', nome);
-            
             if (!nome || !numQuestoes) {
                 alert('Preencha todos os campos obrigatórios!');
+                return;
+            }
+
+            // Verificar se bibliotecas estão carregadas
+            if (typeof window.jsPDF === 'undefined' || typeof QRCode === 'undefined') {
+                alert('Aguarde o carregamento das bibliotecas...');
                 return;
             }
 
@@ -413,12 +434,10 @@
             provas.push(prova);
             localStorage.setItem('provas', JSON.stringify(provas));
 
-            console.log('Prova salva:', prova);
-
-            // Gerar informações para PDF (versão simplificada)
-            gerarInfoPDF(prova);
+            // Gerar PDF com QR code REAL
+            await gerarPDF(prova);
             
-            alert('Prova criada com sucesso! Informações geradas para impressão.');
+            alert('Prova criada com sucesso! PDF gerado para download.');
             
             // Limpar formulário
             document.getElementById('nomeProva').value = '';
@@ -427,47 +446,101 @@
             document.getElementById('gerarPDF').style.display = 'none';
         }
 
-        // Gerar informações para PDF (versão simplificada)
-        function gerarInfoPDF(prova) {
-            const info = `
-GABARITO DE RESPOSTA - ${prova.nome}
-Data: ${prova.data}
-Questões: ${prova.questoes}
-ID da Prova: ${prova.id}
-
-GABARITO OFICIAL:
-${Object.entries(prova.gabarito).map(([num, resp]) => `${num}: ${resp}`).join(' | ')}
-
-INSTRUÇÕES:
-• Preencha completamente as bolhas com caneta azul ou preta
-• Marque apenas uma alternativa por questão
-• Não faça marcas fora das bolhas
-
-GRID DE QUESTÕES:
-${Array.from({length: prova.questoes}, (_, i) => {
-    const num = i + 1;
-    return `${num}: ( ) A  ( ) B  ( ) C  ( ) D  ( ) E`;
-}).join('\n')}
-            `;
+        // Gerar PDF do gabarito com QR code REAL
+        async function gerarPDF(prova) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
             
-            console.log('Informações do PDF:\n', info);
+            // Cabeçalho
+            doc.setFontSize(20);
+            doc.text('GABARITO DE RESPOSTA', 105, 20, { align: 'center' });
             
-            // Criar blob e download
-            const blob = new Blob([info], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `gabarito_${prova.nome.replace(/\s+/g, '_')}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
+            doc.setFontSize(14);
+            doc.text(`Prova: ${prova.nome}`, 20, 35);
+            doc.text(`Data: ${prova.data}`, 20, 45);
+            doc.text(`Questões: ${prova.questoes}`, 20, 55);
+
+            // Gerar QR Code REAL
+            try {
+                const qrData = JSON.stringify({
+                    id: prova.id,
+                    nome: prova.nome,
+                    questoes: prova.questoes
+                });
+                
+                // Criar canvas temporário para o QR code
+                const canvas = document.createElement('canvas');
+                
+                await new Promise((resolve, reject) => {
+                    QRCode.toCanvas(canvas, qrData, {
+                        width: 120,
+                        margin: 1,
+                        color: {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        }
+                    }, (error) => {
+                        if (error) reject(error);
+                        else resolve();
+                    });
+                });
+                
+                // Converter canvas para imagem e adicionar ao PDF
+                const qrImageData = canvas.toDataURL('image/png');
+                doc.addImage(qrImageData, 'PNG', 20, 65, 30, 30);
+                
+                console.log('✅ QR Code real gerado no PDF!');
+                
+            } catch (error) {
+                console.error('Erro ao gerar QR code:', error);
+                // Fallback: desenhar quadrado simples
+                doc.rect(20, 65, 30, 30);
+                doc.text('QR CODE ERROR', 22, 82);
+            }
+            
+            doc.setFontSize(10);
+            doc.text('QR CODE:', 20, 62);
+            doc.text(`ID: ${prova.id}`, 55, 80);
+
+            // Instruções
+            doc.setFontSize(12);
+            doc.text('INSTRUÇÕES:', 20, 110);
+            doc.setFontSize(10);
+            doc.text('• Preencha completamente as bolhas com caneta azul ou preta', 20, 120);
+            doc.text('• Marque apenas uma alternativa por questão', 20, 130);
+            doc.text('• Não faça marcas fora das bolhas', 20, 140);
+
+            // Grid de questões
+            let y = 160;
+            const questoesPorLinha = 5;
+            
+            for (let i = 1; i <= prova.questoes; i++) {
+                const x = 20 + ((i - 1) % questoesPorLinha) * 35;
+                
+                if ((i - 1) % questoesPorLinha === 0 && i > 1) {
+                    y += 25;
+                }
+                
+                // Número da questão
+                doc.setFontSize(10);
+                doc.text(`${i}`, x + 7, y - 5);
+                
+                // Alternativas A B C D E
+                ['A', 'B', 'C', 'D', 'E'].forEach((alt, index) => {
+                    const circleY = y + (index * 3);
+                    doc.circle(x + 5, circleY, 1.5);
+                    doc.text(alt, x + 8, circleY + 1);
+                });
+            }
+
+            // Download
+            doc.save(`gabarito_${prova.nome.replace(/\s+/g, '_')}.pdf`);
         }
 
         // Carregar provas salvas
         function carregarProvas() {
             const select = document.getElementById('provaSelect');
             const provas = JSON.parse(localStorage.getItem('provas') || '[]');
-            
-            console.log('Carregando provas:', provas.length);
             
             select.innerHTML = '<option value="">Escolha uma prova...</option>';
             
@@ -487,8 +560,6 @@ ${Array.from({length: prova.questoes}, (_, i) => {
             const provas = JSON.parse(localStorage.getItem('provas') || '[]');
             provaAtual = provas.find(p => p.id == provaId);
             
-            console.log('Iniciando correção da prova:', provaAtual);
-            
             if (provaAtual) {
                 document.getElementById('scanner-container').style.display = 'block';
                 iniciarCamera();
@@ -498,8 +569,6 @@ ${Array.from({length: prova.questoes}, (_, i) => {
         // Iniciar câmera
         async function iniciarCamera() {
             try {
-                console.log('Iniciando câmera...');
-                
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { 
                         facingMode: 'environment',
@@ -512,44 +581,83 @@ ${Array.from({length: prova.questoes}, (_, i) => {
                 video.srcObject = stream;
                 
                 isScanning = true;
-                document.getElementById('scanStatus').textContent = 'Câmera ativa - Use o botão de teste para simular';
+                processarFrame();
                 
+                document.getElementById('scanStatus').textContent = 'Câmera ativa - Posicione o QR code do gabarito';
             } catch (error) {
                 console.error('Erro ao acessar câmera:', error);
-                alert('Erro ao acessar a câmera. Use o botão de teste para simular.');
+                alert('Erro ao acessar a câmera. Verifique as permissões.');
             }
         }
 
-        // Simular detecção de marcações
+        // Processar frame da câmera para detectar QR code
+        function processarFrame() {
+            if (!isScanning || typeof jsQR === 'undefined') {
+                requestAnimationFrame(processarFrame);
+                return;
+            }
+            
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                
+                if (code) {
+                    try {
+                        const qrData = JSON.parse(code.data);
+                        
+                        // Verificar se o QR code é da prova atual
+                        if (qrData.id == provaAtual.id) {
+                            document.getElementById('scanStatus').textContent = 'QR Code detectado! Processando marcações...';
+                            
+                            // Aqui seria a detecção real das marcações
+                            // Por enquanto, simular para testar o fluxo
+                            setTimeout(() => {
+                                const respostasAluno = simularDeteccaoMarcacoes();
+                                mostrarResultado(respostasAluno);
+                            }, 1000);
+                            
+                            return;
+                        } else {
+                            document.getElementById('scanStatus').textContent = 'QR Code de prova diferente detectado';
+                        }
+                    } catch (e) {
+                        document.getElementById('scanStatus').textContent = 'QR Code inválido detectado';
+                    }
+                }
+            }
+            
+            requestAnimationFrame(processarFrame);
+        }
+
+        // Simular detecção de marcações (temporário para teste)
         function simularDeteccaoMarcacoes() {
             const respostas = {};
             const alternativas = ['A', 'B', 'C', 'D', 'E'];
             
-            console.log('Simulando detecção de marcações...');
-            
             // Gerar respostas aleatórias para teste
             for (let i = 1; i <= provaAtual.questoes; i++) {
-                // 70% de chance de acerto para tornar o teste mais realista
-                if (Math.random() < 0.7) {
-                    respostas[i] = provaAtual.gabarito[i]; // Resposta correta
-                } else {
-                    respostas[i] = alternativas[Math.floor(Math.random() * alternativas.length)]; // Resposta aleatória
-                }
+                respostas[i] = alternativas[Math.floor(Math.random() * alternativas.length)];
             }
             
-            console.log('Respostas simuladas:', respostas);
             return respostas;
         }
 
-        // Testar sem QR code (simulação completa)
+        // Testar sem QR code (apenas para debug)
         function testarSemQR() {
             if (!provaAtual) {
                 alert('Selecione uma prova primeiro!');
                 return;
             }
             
-            console.log('Testando correção sem QR code...');
-            document.getElementById('scanStatus').textContent = '🧪 Simulando detecção de gabarito...';
+            document.getElementById('scanStatus').textContent = 'Modo debug - simulando detecção...';
             
             setTimeout(() => {
                 const respostasAluno = simularDeteccaoMarcacoes();
@@ -563,8 +671,6 @@ ${Array.from({length: prova.questoes}, (_, i) => {
             
             let acertos = 0;
             let detalhes = '';
-            
-            console.log('Calculando resultado...');
             
             for (let i = 1; i <= provaAtual.questoes; i++) {
                 const correta = provaAtual.gabarito[i];
@@ -581,42 +687,28 @@ ${Array.from({length: prova.questoes}, (_, i) => {
             }
             
             const nota = ((acertos / provaAtual.questoes) * 10).toFixed(1);
-            const percentual = ((acertos/provaAtual.questoes)*100).toFixed(1);
-            
-            console.log(`Resultado: ${acertos}/${provaAtual.questoes} = ${nota}/10`);
             
             document.getElementById('resultado-container').innerHTML = `
                 <div class="resultado">
-                    <div class="nota">📊 ${nota}/10</div>
+                    <div class="nota">${nota}/10</div>
                     <div class="detalhes">
                         <div>
-                            <strong>✅ Acertos:</strong> ${acertos}/${provaAtual.questoes}<br>
-                            <strong>📈 Percentual:</strong> ${percentual}%
+                            <strong>Acertos:</strong> ${acertos}/${provaAtual.questoes}<br>
+                            <strong>Percentual:</strong> ${((acertos/provaAtual.questoes)*100).toFixed(1)}%
                         </div>
                         <div>
-                            <strong>📝 Prova:</strong> ${provaAtual.nome}<br>
-                            <strong>📅 Correção:</strong> ${new Date().toLocaleString('pt-BR')}
+                            <strong>Prova:</strong> ${provaAtual.nome}<br>
+                            <strong>Data:</strong> ${new Date().toLocaleString('pt-BR')}
                         </div>
                     </div>
                     <details style="margin-top: 15px;">
-                        <summary style="cursor: pointer; font-weight: bold;">📋 Ver detalhes por questão</summary>
+                        <summary style="cursor: pointer; font-weight: bold;">Ver detalhes por questão</summary>
                         <div style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
                             ${detalhes}
                         </div>
                     </details>
-                    <button class="btn" onclick="novaCorrecao()" style="width: 100%; margin-top: 15px;">
-                        🔄 Corrigir Outra Prova
-                    </button>
                 </div>
             `;
-        }
-
-        // Nova correção
-        function novaCorrecao() {
-            document.getElementById('resultado-container').innerHTML = '';
-            document.getElementById('scanner-container').style.display = 'none';
-            document.getElementById('provaSelect').value = '';
-            provaAtual = null;
         }
 
         // Parar câmera
@@ -626,24 +718,20 @@ ${Array.from({length: prova.questoes}, (_, i) => {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
-                console.log('Câmera parada');
             }
             
             document.getElementById('scanner-container').style.display = 'none';
             document.getElementById('scanStatus').textContent = 'Posicione o gabarito na área destacada';
         }
 
-        // Verificar funcionalidades no carregamento
+        // Inicialização
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('✅ Sistema carregado com sucesso!');
-            console.log('✅ Todas as funcionalidades estão inline');
-            console.log('✅ Pronto para uso!');
+            console.log('🚀 Iniciando sistema...');
+            initializeLibraries();
             
             // Verificar suporte à câmera
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                console.warn('⚠️ Dispositivo não suporta câmera, use o modo de teste');
-            } else {
-                console.log('✅ Suporte à câmera detectado');
+                console.warn('Dispositivo não suporta acesso à câmera.');
             }
         });
     </script>
